@@ -1,18 +1,22 @@
 package com.martaTostSoft;
 
-import java.util.List;
+import java.util.concurrent.*;
 
 public class Rocket {
     private String id;
-    private double speed = 0.0;
+    private volatile double speed = 0.0;
     private Propellant[] propellants;
+    private static final String ACCELERATE = "accelerate";
+    private static final String SLOW_DOWN = "slowDown";
+
 
     public Rocket() {
     }
 
-    public Rocket(String id, double speed, List<Propellant> propellants) {
+    public Rocket(String id, double speed, Propellant[] propellants) {
         this.id = id;
         this.speed = speed;
+        this.propellants = propellants;
     }
 
     public String getId() {
@@ -39,30 +43,49 @@ public class Rocket {
         this.speed = speed;
     }
 
-    public void accelerate(Propellant propellant) {
-        if (propellant.getCurrentPower() < propellant.getMaximumPower()) {
-            propellant.setCurrentPower(propellant.getCurrentPower() + 10);
-        } else
-            propellant.setCurrentPower(propellant.getMaximumPower());
+
+    public void accelerate() {
+        Propellant[] propellants = this.getPropellants();
+        ExecutorService executor = Executors.newFixedThreadPool(propellants.length);
+
+        for (Propellant propellant : propellants) {
+            propellant.setAction(ACCELERATE);
+            executor.execute(propellant);
+        }
+        executor.shutdown();
+        while (!executor.isTerminated()) {
+        }
+        this.ChangeAcceleratingCurrentSpeed();
     }
 
+    public void brake() {
+        Propellant[] propellants = this.getPropellants();
+        ExecutorService executor = Executors.newFixedThreadPool(propellants.length);
 
-    public void brake(Propellant propellant) {
-        if (propellant.getCurrentPower() > 0) {
-            propellant.setCurrentPower(propellant.getCurrentPower() - 10);
-        } else
-            propellant.setCurrentPower(0);
+        for (Propellant propellant : propellants) {
+            propellant.setAction(SLOW_DOWN);
+            executor.execute(propellant);
+        }
+        executor.shutdown();
+        while (!executor.isTerminated()) {
+        }
+
+        this.changeBrakingCurrentSpeed();
     }
 
-    public double currentSpeed() {
-        double currentSpeed = 0.0;
-        currentSpeed = getSpeed() + Math.sqrt(sumOfPropellants());
-        setSpeed(currentSpeed);
-        return currentSpeed;
+    private void changeBrakingCurrentSpeed() {
+        this.setSpeed(this.getSpeed() - (100 * Math.sqrt(Math.abs(sumOfPropellants()))));
+        if (speed <= 0.0)
+            this.setSpeed(0);
     }
 
-    private double sumOfPropellants() {
+    public void ChangeAcceleratingCurrentSpeed() {
+        speed = this.getSpeed() + (100 * Math.sqrt(Math.abs(sumOfPropellants())));
+    }
+
+    public double sumOfPropellants() {
         double totalPower = 0.0;
+        Propellant[] propellants = this.getPropellants();
 
         for (Propellant propellant : propellants)
             totalPower = totalPower + propellant.getCurrentPower();
